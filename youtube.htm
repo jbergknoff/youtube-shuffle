@@ -1,0 +1,258 @@
+<html>
+<head>
+<title>YouTube Shuffle</title>
+<style>
+body
+{
+	font-family: "Open Sans", sans-serif;
+}
+
+input.url
+{
+	padding: 0.5em;
+	font-size: 1.2em;
+	border: 1px solid black;
+	width: 100%;
+}
+
+div#list
+{
+	float: left;
+	width: 20em;
+	margin-right: 2em;
+}
+
+div#right
+{
+	float: left;
+}
+
+div#list ul
+{
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+}
+
+div#list li
+{
+	padding: 0.5em;
+	background: lightgray;
+	border: 1px solid gray;
+}
+
+div#list a.remove
+{
+	font-size: 0.6em;
+	color: red;
+	cursor: pointer;
+}
+
+div#list span.start-at
+{
+	font-size: 80%;
+}
+
+div#list span.start-at input
+{
+	width: 3em;
+}
+
+div#list li div.item
+{
+	cursor: pointer;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+}
+</style>
+<link href="http://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" type="text/css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.0.0/knockout-min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+var Player;
+function onYouTubeIframeAPIReady() { ko.applyBindings(new Model()); }
+
+function ItemModel(Options)
+{
+	Options = Options || {};
+	return { "Code": Options.Code, "Title": Options.Title || ("Untitled (" + OptionsCode + ")"), "StartAt": ko.observable(Options.StartAt || 0) };
+}
+
+function Model()
+{
+	var Self = this;
+	Self.List = ko.observableArray();
+	var LocalStorageKey = "YouTubePlaylist";
+
+	Self.InputValue = ko.observable();
+	Self.Add = function()
+	{
+		var Input = Self.InputValue();
+		var Code;
+
+		var RegExpResults = /[a-zA-Z0-9\-\_]{11}/.exec(Input);
+		if (!RegExpResults || RegExpResults.length != 1) return alert("couldn't parse this URL/ID");
+		Code = RegExpResults[0];
+
+		$.getJSON
+		(
+			"https://gdata.youtube.com/feeds/api/videos/" + Code + "?v=2&alt=json&callback=?",
+			function(Data)
+			{
+				var Entry = (Data || {}).entry || {};
+				var Title = (Entry.title || {})["$t"];
+				Self.List.push(new ItemModel({ "Code": Code, "Title": Title }));
+				Self.InputValue("");
+			}
+		);
+	}
+
+	Self.Remove = function(Item)
+	{
+		if (!confirm("Are you sure you want to delete \"" + Item.Title + "\"?")) return;
+
+		if (Self.Current() == Item)
+			Self.Current(null);
+
+		Self.List.remove(Item);
+	}
+
+	Self.RemoveCurrent = function() { if (Self.Current()) Self.Remove(Self.Current()); };
+	Self.RemoveAll = function()
+	{
+		if (!confirm("Are you sure you want to delete everything?")) return;
+		Self.Current(null);
+		Self.List.removeAll();
+	}
+
+	Self.Current = ko.observable();
+	Self.Play = function(Item)
+	{
+		Player.loadVideoById(Item.Code, Item.StartAt());
+		Self.Current(Item);
+	}
+
+	Self.List.subscribe
+	(
+		function()
+		{
+			if (Self.List().length == 0)
+			{
+				if (Player && Self.Current()) Player.stopVideo();
+				return;
+			}
+			if (!Self.Current()) Self.PlaySomething();
+		}
+	);
+
+	Self.Loop = ko.observable(false);
+	Self.PlaySomething = function()
+	{
+		var Item = Self.List()[~~(Math.random() * Self.List().length)];
+		if (!Item) return;
+
+		Self.Play(Item);
+	}
+
+	Self.VideoStateChangeHandler = function(E)
+	{
+		if (E.data == YT.PlayerState.ENDED)
+		{
+			if (Self.Loop()) Self.Play(Self.Current());
+			else Self.PlaySomething();
+		}
+	}
+
+	Self.ImportString =  ko.observable();
+	Self.Import = function()
+	{
+		if (Import(Self.ImportString()))
+			Self.ImportString("");
+	}
+
+	function Import(ImportString)
+	{
+		try
+		{
+			var List = JSON.parse(ImportString);
+			List.forEach(function(L) { Self.List().push(new ItemModel(L)); });
+			Self.List.valueHasMutated();
+			SaveToLocalStorage();
+			return true;
+		}
+		catch(E) { alert("import failed"); }
+	}
+
+	Self.ExportString = ko.computed(function() { return ko.toJSON(Self.List()); });
+
+	function SaveToLocalStorage() { localStorage[LocalStorageKey] = ko.toJSON(Self.List()); }
+
+	Player = new YT.Player
+	(
+		"player-container",
+		{
+			"events":
+			{
+				"onStateChange": Self.VideoStateChangeHandler,
+				"onReady": function()
+				{
+					if (localStorage[LocalStorageKey]) Import(localStorage[LocalStorageKey]);
+					setInterval(SaveToLocalStorage, 5000);
+				}
+			}
+		}
+	);
+}
+
+var YouTubeScript = document.createElement("script");
+YouTubeScript.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(YouTubeScript);
+</script>
+</head>
+<body>
+	<div>
+		<form data-bind="submit: Add">
+		<input type="text" class="url" placeholder="YouTube URL..." data-bind="value: InputValue">
+		</form>
+	</div>
+
+	<div id="list" style="display: none" data-bind="visible: true">
+		<div>
+			<span data-bind="text: List().length + ' item' + (List().length == 1 ? '' : 's')"></span>
+			<a style="margin-left: 1em" class="remove" data-bind="click: RemoveAll">remove all</a>
+		</div>
+		<ul data-bind="foreach: List">
+			<li>
+				<div class="item" data-bind="text: Title, click: $parent.Play, attr: { title: Title }"></div>
+				<div>
+					<a class="remove" data-bind="click: $parent.Remove">remove</a>
+					<span class="start-at">
+						start at (seconds)
+						<input type="text" data-bind="value: StartAt">
+					</span>
+				</div>
+			</li>
+		</ul>
+	</div>
+	<div id="right">
+		<div>
+			<button data-bind="click: PlaySomething">play something else</button>
+			<div data-bind="if: Current">
+				<h3 data-bind="text: Current().Title"></h3>
+				<label><input type="checkbox" data-bind="value: Loop">loop this song</label>
+				<button data-bind="click: RemoveCurrent">remove this song</button>
+			</div>
+		</div>
+		<div id="player-container"></div>
+		<br>
+		<h3>batch import</h3>
+		<textarea style="width: 100%; height: 10em" data-bind="value: ImportString"></textarea>
+		<button data-bind="click: Import">import this stuff</button>
+		<br>
+		<h3>batch export</h3>
+		<p style="width: 40em" data-bind="text: ExportString"></p>
+	</div>
+</body>
+</html>
