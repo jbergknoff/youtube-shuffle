@@ -209,6 +209,8 @@ function Model()
 var YouTubeScript = document.createElement("script");
 YouTubeScript.src = "https://www.youtube.com/iframe_api";
 document.head.appendChild(YouTubeScript);
+
+$(window).focus(function() { $("input.url").focus(); });
 </script>
 </head>
 <body>
