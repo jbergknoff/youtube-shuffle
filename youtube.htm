@@ -242,7 +242,11 @@ function Model()
 	Self.ExportString = ko.computed(function() { return ko.toJSON(Self.List()); });
 
 	Self.Select = function(Model, Event) { Event.toElement.select(); }
-	Self.ClearInput = function() { Self.InputValue(""); }
+	Self.ClearInput = function()
+	{
+		Self.InputValue("");
+		Self.SearchResults.removeAll();
+	}
 
 	function SaveToLocalStorage() { localStorage[LocalStorageKey] = ko.toJSON(Self.List()); }
 
@@ -271,7 +275,6 @@ function Model()
 	Self.AddSearchResultToList = function()
 	{
 		Self.AddToList(this.Code, this.Title);
-		Self.SearchResults.removeAll();
 		Self.ClearInput();
 	}
 }
@@ -287,7 +290,7 @@ document.head.appendChild(YouTubeScript);
 			<div class="input-group input-group-lg">
 				<input type="text" class="form-control" placeholder="YouTube URL or search query..." data-bind="value: InputValue">
 				<span class="input-group-btn">
-					<button class="btn btn-default" data-bind="click: ClearInput" type="button">&times;</button>
+					<button class="btn btn-danger" data-bind="click: ClearInput" type="button">&times;</button>
 				</span>
 			</div>
 		</form>
