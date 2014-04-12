@@ -59,16 +59,15 @@ div#list .start-at input
 	width: 2em;
 }
 
-div#list li div.item
+.ellipsis
 {
-	cursor: pointer;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	overflow: hidden;
 }
 </style>
 <script src="http://cdnjs.cloudflare.com/ajax/libs/knockout/3.0.0/knockout-min.js"></script>
-<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script src="http://rawgit.com/IntoMethod/Lightweight-JSONP/master/jsonp.js"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 function onYouTubeIframeAPIReady() { ko.applyBindings(new Model()); }
@@ -76,7 +75,11 @@ function onYouTubeIframeAPIReady() { ko.applyBindings(new Model()); }
 function ItemModel(Options)
 {
 	Options = Options || {};
-	return { "Code": Options.Code, "Title": Options.Title || ("Untitled (" + OptionsCode + ")"), "StartAt": ko.observable(Options.StartAt || 0) };
+	var Item = {};
+	Item.Code = Options.Code;
+	Item.Title = Options.Title || ("Untitled (" + OptionsCode + ")");
+	Item.StartAt = ko.observable(Options.StartAt || 0);
+	return Item;
 }
 
 function Model()
@@ -86,27 +89,71 @@ function Model()
 	Self.List = ko.observableArray();
 	Self.Filter = ko.observable();
 	Self.FilteredList = ko.computed(FilteredList).extend({ "throttle": 100 });
+	Self.SearchResults = ko.observableArray();
 	var LocalStorageKey = "YouTubePlaylist";
 
 	Self.InputValue = ko.observable();
-	Self.Add = function()
+	Self.ProcessInput = function()
 	{
 		var Input = Self.InputValue();
 		var Code;
 
 		var RegExpResults = /[a-zA-Z0-9\-\_]{11}/.exec(Input);
-		if (!RegExpResults || RegExpResults.length != 1) return alert("couldn't parse this URL/ID");
-		Code = RegExpResults[0];
+		if (!RegExpResults || RegExpResults.length != 1)
+			SearchYouTube(Input);
+		else
+			AddVideoByCode(RegExpResults[0]);
+	}
 
-		$.getJSON
+	Self.AddToList = function(Code, Title)
+	{
+		Self.List.push(new ItemModel({ "Code": Code, "Title": Title }));
+	}
+
+	function AddVideoByCode(Code)
+	{
+		JSONP.get
 		(
-			"https://gdata.youtube.com/feeds/api/videos/" + Code + "?v=2&alt=json&callback=?",
+			"http://gdata.youtube.com/feeds/api/videos/" + Code,
+			{
+				"v": 2,
+				"alt": "json"
+			},
 			function(Data)
 			{
 				var Entry = (Data || {}).entry || {};
 				var Title = (Entry.title || {})["$t"];
-				Self.List.push(new ItemModel({ "Code": Code, "Title": Title }));
-				Self.InputValue("");
+				Self.AddToList(Code, Title);
+				Self.ClearInput();
+			}
+		);
+	}
+
+	function SearchYouTube(Query)
+	{
+		JSONP.get
+		(
+			"http://gdata.youtube.com/feeds/videos",
+			{
+				"vq": Query,
+				"max-results": 8,
+				"alt": "json-in-script"
+			},
+			function(Data)
+			{
+				Self.SearchResults.removeAll();
+				(((Data || {}).feed || {}).entry || []).forEach
+				(
+					function(Hit)
+					{
+						var Title = (Hit.title || {})["$t"] || "<Untitled>";
+						var FeedURL = (Hit.id || {})["$t"] || "";
+						var Code = FeedURL.substring(FeedURL.lastIndexOf("/") + 1);
+						var ThumbnailURL = (((Hit["media$group"] || {})["media$thumbnail"] || [])[1] || {}).url || "";
+
+						Self.SearchResults.push({ "Code": Code, "Title": Title, "ThumbnailURL": ThumbnailURL });
+					}
+				);
 			}
 		);
 	}
@@ -194,10 +241,8 @@ function Model()
 	Self.ToggleShowExport = function() { Self.ShowExport(!Self.ShowExport()); };
 	Self.ExportString = ko.computed(function() { return ko.toJSON(Self.List()); });
 
-	Self.Select = function(Model, Event)
-	{
-		Event.toElement.select();
-	}
+	Self.Select = function(Model, Event) { Event.toElement.select(); }
+	Self.ClearInput = function() { Self.InputValue(""); }
 
 	function SaveToLocalStorage() { localStorage[LocalStorageKey] = ko.toJSON(Self.List()); }
 
@@ -222,6 +267,13 @@ function Model()
 		if (!Self.Filter()) return Self.List();
 		return Self.List().filter(function(V) { return V.Title.toLowerCase().indexOf(Self.Filter().toLowerCase()) > -1; });
 	}
+
+	Self.AddSearchResultToList = function()
+	{
+		Self.AddToList(this.Code, this.Title);
+		Self.SearchResults.removeAll();
+		Self.ClearInput();
+	}
 }
 
 var YouTubeScript = document.createElement("script");
@@ -231,10 +283,28 @@ document.head.appendChild(YouTubeScript);
 </head>
 <body>
 	<div class="padded">
-		<form data-bind="submit: Add">
-			<input type="text" class="form-control input-lg" placeholder="YouTube URL..." data-bind="value: InputValue">
+		<form data-bind="submit: ProcessInput">
+			<div class="input-group input-group-lg">
+				<input type="text" class="form-control" placeholder="YouTube URL or search query..." data-bind="value: InputValue">
+				<span class="input-group-btn">
+					<button class="btn btn-default" data-bind="click: ClearInput" type="button">&times;</button>
+				</span>
+			</div>
 		</form>
 	</div>
+
+	<!-- ko if: InputValue() && SearchResults().length > 0 -->
+	<div class="row" data-bind="foreach: SearchResults">
+		<div class="col-xs-3">
+			<div class="thumbnail pointer" data-bind="click: $parent.AddSearchResultToList">
+				<img data-bind="attr: { src: ThumbnailURL }">
+				<div class="caption">
+					<h4 class="ellipsis" data-bind="text: Title"></h4>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- /ko -->
 
 	<div>
 		<div id="list">
@@ -252,7 +322,7 @@ document.head.appendChild(YouTubeScript);
 			<ul data-bind="foreach: FilteredList">
 				<li class="well well-sm">
 					<button class="close" data-bind="click: $parent.Remove">&times;</button>
-					<div class="item" data-bind="text: Title, click: $parent.Play, attr: { title: Title }"></div>
+					<div class="pointer ellipsis" data-bind="text: Title, click: $parent.Play, attr: { title: Title }"></div>
 					<div class="start-at">
 						<span>start at</span>
 						<input type="text" data-bind="value: StartAt">
