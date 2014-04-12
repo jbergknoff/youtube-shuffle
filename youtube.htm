@@ -1,8 +1,10 @@
 <html>
 <head>
 <title>YouTube Shuffle</title>
+<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure-min.css">
+<link href="http://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" type="text/css">
 <style>
-body
+body, input.url, div#list, div#video
 {
 	font-family: "Open Sans", sans-serif;
 }
@@ -15,47 +17,39 @@ input.url
 	width: 100%;
 }
 
-div#list
-{
-	float: left;
-	width: 20em;
-	margin-right: 2em;
-}
-
-div#right
-{
-	float: left;
-}
+.padded { padding: 1em; }
 
 div#list ul
 {
 	list-style-type: none;
 	margin: 0;
 	padding: 0;
+	height: 30em;
+	overflow: auto;
 }
 
 div#list li
 {
 	padding: 0.5em;
-	background: lightgray;
+	background: #E6E6E6;
 	border: 1px solid gray;
+	margin: 0.5em;
 }
 
-div#list a.remove
+div#list li:hover
 {
-	font-size: 0.6em;
-	color: red;
-	cursor: pointer;
+	background: #F1F1F1;
 }
 
-div#list span.start-at
+div#list .start-at
 {
 	font-size: 80%;
+	padding-top: 0.6em;
 }
 
-div#list span.start-at input
+div#list .start-at input
 {
-	width: 3em;
+	width: 2em;
 }
 
 div#list li div.item
@@ -65,13 +59,16 @@ div#list li div.item
 	white-space: nowrap;
 	overflow: hidden;
 }
+
+button.remove
+{
+	font-size: 80%;
+}
 </style>
-<link href="http://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" type="text/css">
 <script src="http://cdnjs.cloudflare.com/ajax/libs/knockout/3.0.0/knockout-min.js"></script>
 <script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-var Player;
 function onYouTubeIframeAPIReady() { ko.applyBindings(new Model()); }
 
 function ItemModel(Options)
@@ -83,7 +80,10 @@ function ItemModel(Options)
 function Model()
 {
 	var Self = this;
+	var Player;
 	Self.List = ko.observableArray();
+	Self.Filter = ko.observable();
+	Self.FilteredList = ko.computed(FilteredList).extend({ "throttle": 200 });
 	var LocalStorageKey = "YouTubePlaylist";
 
 	Self.InputValue = ko.observable();
@@ -187,6 +187,11 @@ function Model()
 
 	Self.ExportString = ko.computed(function() { return ko.toJSON(Self.List()); });
 
+	Self.Select = function(Model, Event)
+	{
+		Event.toElement.select();
+	}
+
 	function SaveToLocalStorage() { localStorage[LocalStorageKey] = ko.toJSON(Self.List()); }
 
 	Player = new YT.Player
@@ -204,57 +209,81 @@ function Model()
 			}
 		}
 	);
+
+	function FilteredList()
+	{
+		if (!Self.Filter()) return Self.List();
+		return Self.List().filter(function(V) { return V.Title.toLowerCase().indexOf(Self.Filter().toLowerCase()) > -1; });
+	}
 }
 
 var YouTubeScript = document.createElement("script");
 YouTubeScript.src = "https://www.youtube.com/iframe_api";
 document.head.appendChild(YouTubeScript);
-
-$(window).focus(function() { $("input.url").focus(); });
 </script>
 </head>
 <body>
-	<div>
+	<div class="padded">
 		<form data-bind="submit: Add">
 		<input type="text" class="url" placeholder="YouTube URL..." data-bind="value: InputValue">
 		</form>
 	</div>
 
-	<div id="list" style="display: none" data-bind="visible: true">
-		<div>
-			<span data-bind="text: List().length + ' item' + (List().length == 1 ? '' : 's')"></span>
-			<a style="margin-left: 1em" class="remove" data-bind="click: RemoveAll">remove all</a>
-		</div>
-		<ul data-bind="foreach: List">
-			<li>
-				<div class="item" data-bind="text: Title, click: $parent.Play, attr: { title: Title }"></div>
-				<div>
-					<a class="remove" data-bind="click: $parent.Remove">remove</a>
-					<span class="start-at">
-						start at (seconds)
-						<input type="text" data-bind="value: StartAt">
-					</span>
+	<div class="pure-g">
+		<div id="list" class="pure-u-1-5">
+			<div class="pure-g padded">
+				<div class="pure-u-1-2" data-bind="text: List().length + ' item' + (List().length == 1 ? '' : 's')" style="padding-top: 0.5em"></div>
+				<div class="pure-u-1-2">
+					<button style="width: 100%" class="pure-button" data-bind="click: RemoveAll">remove all</button>
 				</div>
-			</li>
-		</ul>
-	</div>
-	<div id="right">
-		<div>
-			<button data-bind="click: PlaySomething">play something else</button>
-			<div data-bind="if: Current">
-				<h3 data-bind="text: Current().Title"></h3>
-				<label><input type="checkbox" data-bind="value: Loop">loop this song</label>
-				<button data-bind="click: RemoveCurrent">remove this song</button>
+			</div>
+
+			<form class="pure-form padded">
+				<input type="text" class="pure-input-1" data-bind="value: Filter, valueUpdate: 'keyup'" placeholder="filter...">
+			</form>
+
+			<ul data-bind="foreach: FilteredList">
+				<li>
+					<div class="item" data-bind="text: Title, click: $parent.Play, attr: { title: Title }"></div>
+					<div class="pure-g">
+						<div class="pure-u-4-5 start-at">
+							<span>start at (seconds)</span>
+							<input type="text" data-bind="value: StartAt">
+						</div>
+						<div class="pure-u-1-5">
+							<button data-bind="click: $parent.Remove" class="pure-button remove" style="width: 100%">x</button>
+						</div>
+					</div>
+				</li>
+			</ul>
+		</div>
+
+		<div id="video" class="pure-u-4-5">
+			<div class="padded">
+				<div>
+					<button data-bind="click: PlaySomething" class="pure-button pure-button-primary">play something else</button>
+					<span class="padded" data-bind="if: Current">
+						<label><input type="checkbox" data-bind="checked: Loop">loop this song</label>
+					</span>
+
+					<div data-bind="if: Current" style="margin-bottom: 1em">
+						<h3 data-bind="text: Current().Title"></h3>
+						<button data-bind="click: RemoveCurrent" class="pure-button">remove this song</button>
+					</div>
+				</div>
+				<div id="player-container"></div>
+				<br>
+				<form class="pure-form">
+					<label for="import"><h3>batch import</h3></label>
+					<textarea id="import" class="pure-input-1" style="height: 10em" data-bind="value: ImportString"></textarea>
+					<br><br>
+					<button data-bind="click: Import" class="pure-button pure-button-primary">import this stuff</button>
+					<br>
+					<label for="export"><h3>batch export (copy/paste)</h3></label>
+					<input id="export" type="text" class="pure-input-1-2" data-bind="value: ExportString, click: Select" readonly>
+				</form>
 			</div>
 		</div>
-		<div id="player-container"></div>
-		<br>
-		<h3>batch import</h3>
-		<textarea style="width: 100%; height: 10em" data-bind="value: ImportString"></textarea>
-		<button data-bind="click: Import">import this stuff</button>
-		<br>
-		<h3>batch export</h3>
-		<p style="width: 40em" data-bind="text: ExportString"></p>
 	</div>
 </body>
 </html>
