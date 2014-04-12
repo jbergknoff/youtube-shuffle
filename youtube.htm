@@ -1,23 +1,34 @@
 <html>
 <head>
 <title>YouTube Shuffle</title>
-<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure-min.css">
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
 <link href="http://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" type="text/css">
 <style>
-body, input.url, div#list, div#video
+body
 {
 	font-family: "Open Sans", sans-serif;
 }
 
-input.url
+.padded { padding: 1em; }
+.pointer { cursor: pointer; }
+
+#list, #video
 {
-	padding: 0.5em;
-	font-size: 1.2em;
-	border: 1px solid black;
-	width: 100%;
+	display: inline-block;
+	vertical-align: top;
 }
 
-.padded { padding: 1em; }
+div#list
+{
+	min-width: 300px;
+	max-width: 20%;
+}
+
+div#video
+{
+	min-width: 700px;
+	max-width: 80%;
+}
 
 div#list ul
 {
@@ -30,10 +41,7 @@ div#list ul
 
 div#list li
 {
-	padding: 0.5em;
-	background: #E6E6E6;
-	border: 1px solid gray;
-	margin: 0.5em;
+	margin-bottom: 0.5em;
 }
 
 div#list li:hover
@@ -41,10 +49,9 @@ div#list li:hover
 	background: #F1F1F1;
 }
 
-div#list .start-at
+div#list .start-at span
 {
 	font-size: 80%;
-	padding-top: 0.6em;
 }
 
 div#list .start-at input
@@ -58,11 +65,6 @@ div#list li div.item
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	overflow: hidden;
-}
-
-button.remove
-{
-	font-size: 80%;
 }
 </style>
 <script src="http://cdnjs.cloudflare.com/ajax/libs/knockout/3.0.0/knockout-min.js"></script>
@@ -83,7 +85,7 @@ function Model()
 	var Player;
 	Self.List = ko.observableArray();
 	Self.Filter = ko.observable();
-	Self.FilteredList = ko.computed(FilteredList).extend({ "throttle": 200 });
+	Self.FilteredList = ko.computed(FilteredList).extend({ "throttle": 100 });
 	var LocalStorageKey = "YouTubePlaylist";
 
 	Self.InputValue = ko.observable();
@@ -143,6 +145,7 @@ function Model()
 				if (Player && Self.Current()) Player.stopVideo();
 				return;
 			}
+
 			if (!Self.Current()) Self.PlaySomething();
 		}
 	);
@@ -165,6 +168,8 @@ function Model()
 		}
 	}
 
+	Self.ShowImport = ko.observable(false);
+	Self.ToggleShowImport = function() { Self.ShowImport(!Self.ShowImport()); };
 	Self.ImportString =  ko.observable();
 	Self.Import = function()
 	{
@@ -185,6 +190,8 @@ function Model()
 		catch(E) { alert("import failed"); }
 	}
 
+	Self.ShowExport = ko.observable(false);
+	Self.ToggleShowExport = function() { Self.ShowExport(!Self.ShowExport()); };
 	Self.ExportString = ko.computed(function() { return ko.toJSON(Self.List()); });
 
 	Self.Select = function(Model, Event)
@@ -225,64 +232,63 @@ document.head.appendChild(YouTubeScript);
 <body>
 	<div class="padded">
 		<form data-bind="submit: Add">
-		<input type="text" class="url" placeholder="YouTube URL..." data-bind="value: InputValue">
+			<input type="text" class="form-control input-lg" placeholder="YouTube URL..." data-bind="value: InputValue">
 		</form>
 	</div>
 
-	<div class="pure-g">
-		<div id="list" class="pure-u-1-5">
-			<div class="pure-g padded">
-				<div class="pure-u-1-2" data-bind="text: List().length + ' item' + (List().length == 1 ? '' : 's')" style="padding-top: 0.5em"></div>
-				<div class="pure-u-1-2">
-					<button style="width: 100%" class="pure-button" data-bind="click: RemoveAll">remove all</button>
+	<div>
+		<div id="list">
+			<div class="row" style="margin: auto 1em">
+				<div class="col-xs-6" data-bind="text: List().length + ' item' + (List().length == 1 ? '' : 's')" style="padding-top: 0.5em"></div>
+				<div class="col-xs-6">
+					<button style="width: 100%" class="btn btn-danger" data-bind="click: RemoveAll">remove all</button>
 				</div>
 			</div>
 
-			<form class="pure-form padded">
-				<input type="text" class="pure-input-1" data-bind="value: Filter, valueUpdate: 'keyup'" placeholder="filter...">
-			</form>
+			<div class="row" style="margin: 1em">
+				<input type="text" class="form-control" data-bind="value: Filter, valueUpdate: 'keyup'" placeholder="filter...">
+			</div>
 
 			<ul data-bind="foreach: FilteredList">
-				<li>
+				<li class="well well-sm">
+					<button class="close" data-bind="click: $parent.Remove">&times;</button>
 					<div class="item" data-bind="text: Title, click: $parent.Play, attr: { title: Title }"></div>
-					<div class="pure-g">
-						<div class="pure-u-4-5 start-at">
-							<span>start at (seconds)</span>
-							<input type="text" data-bind="value: StartAt">
-						</div>
-						<div class="pure-u-1-5">
-							<button data-bind="click: $parent.Remove" class="pure-button remove" style="width: 100%">x</button>
-						</div>
+					<div class="start-at">
+						<span>start at</span>
+						<input type="text" data-bind="value: StartAt">
 					</div>
 				</li>
 			</ul>
 		</div>
 
-		<div id="video" class="pure-u-4-5">
-			<div class="padded">
-				<div>
-					<button data-bind="click: PlaySomething" class="pure-button pure-button-primary">play something else</button>
-					<span class="padded" data-bind="if: Current">
-						<label><input type="checkbox" data-bind="checked: Loop">loop this song</label>
-					</span>
+		<div id="video">
+			<div>
+				<button data-bind="click: PlaySomething" class="btn btn-primary">play something else</button>
+				<span class="padded" data-bind="if: Current">
+					<label><input type="checkbox" data-bind="checked: Loop">loop this song</label>
+				</span>
 
-					<div data-bind="if: Current" style="margin-bottom: 1em">
-						<h3 data-bind="text: Current().Title"></h3>
-						<button data-bind="click: RemoveCurrent" class="pure-button">remove this song</button>
-					</div>
+				<div data-bind="if: Current" style="margin-bottom: 1em">
+					<h3 data-bind="text: Current().Title"></h3>
+					<button data-bind="click: RemoveCurrent" class="btn btn-danger">remove this song</button>
 				</div>
-				<div id="player-container"></div>
-				<br>
-				<form class="pure-form">
-					<label for="import"><h3>batch import</h3></label>
-					<textarea id="import" class="pure-input-1" style="height: 10em" data-bind="value: ImportString"></textarea>
-					<br><br>
-					<button data-bind="click: Import" class="pure-button pure-button-primary">import this stuff</button>
-					<br>
-					<label for="export"><h3>batch export (copy/paste)</h3></label>
-					<input id="export" type="text" class="pure-input-1-2" data-bind="value: ExportString, click: Select" readonly>
-				</form>
 			</div>
+			<div id="player-container"></div>
+			<br>
+
+			<label for="import" data-bind="click: ToggleShowImport"><h4><a href="#">batch import</a></h4></label>
+			<!-- ko if: ShowImport -->
+			<textarea id="import" class="form-control" style="height: 10em" data-bind="value: ImportString"></textarea>
+			<br>
+			<button data-bind="click: Import" class="btn btn-primary">import this stuff</button>
+			<!-- /ko -->
+
+			<br>
+
+			<label for="export" data-bind="click: ToggleShowExport"><h4><a href="#">batch export</a></h4></label>
+			<!-- ko if: ShowExport -->
+			<input id="export" type="text" class="form-control" data-bind="value: ExportString, click: Select" readonly>
+			<!-- /ko -->
 		</div>
 	</div>
 </body>
