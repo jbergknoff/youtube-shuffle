@@ -290,7 +290,7 @@ document.head.appendChild(YouTubeScript);
 			<div class="input-group input-group-lg">
 				<input type="text" class="form-control" placeholder="YouTube URL or search query..." data-bind="value: InputValue">
 				<span class="input-group-btn">
-					<button class="btn btn-danger" data-bind="click: ClearInput" type="button">&times;</button>
+					<button class="btn" data-bind="click: ClearInput" type="button">&times;</button>
 				</span>
 			</div>
 		</form>
@@ -314,7 +314,7 @@ document.head.appendChild(YouTubeScript);
 			<div class="row" style="margin: auto 1em">
 				<div class="col-xs-6" data-bind="text: List().length + ' item' + (List().length == 1 ? '' : 's')" style="padding-top: 0.5em"></div>
 				<div class="col-xs-6">
-					<button style="width: 100%" class="btn btn-danger" data-bind="click: RemoveAll">remove all</button>
+					<button style="width: 100%" class="btn" data-bind="click: RemoveAll">remove all</button>
 				</div>
 			</div>
 
@@ -335,15 +335,15 @@ document.head.appendChild(YouTubeScript);
 		</div>
 
 		<div id="video">
-			<div>
+			<div style="width: 50em">
 				<button data-bind="click: PlaySomething" class="btn btn-primary">play something else</button>
 				<span class="padded" data-bind="if: Current">
 					<label><input type="checkbox" data-bind="checked: Loop">loop this song</label>
 				</span>
 
 				<div data-bind="if: Current" style="margin-bottom: 1em">
-					<h3 data-bind="text: Current().Title"></h3>
-					<button data-bind="click: RemoveCurrent" class="btn btn-danger">remove this song</button>
+					<h3 class="ellipsis" data-bind="text: Current().Title"></h3>
+					<button data-bind="click: RemoveCurrent" class="btn">remove this song</button>
 				</div>
 			</div>
 			<div id="player-container"></div>
