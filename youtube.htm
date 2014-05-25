@@ -200,7 +200,8 @@ function Model()
 	Self.Loop = ko.observable(false);
 	Self.PlaySomething = function()
 	{
-		var Item = Self.List()[~~(Math.random() * Self.List().length)];
+		var List = Self.FilteredList();
+		var Item = List[~~(Math.random() * List.length)];
 		if (!Item) return;
 
 		Self.Play(Item);
@@ -248,6 +249,11 @@ function Model()
 		Self.SearchResults.removeAll();
 	}
 
+	Self.ClearFilter = function()
+	{
+		Self.Filter("");
+	}
+
 	function SaveToLocalStorage() { localStorage[LocalStorageKey] = ko.toJSON(Self.List()); }
 
 	Player = new YT.Player
@@ -259,13 +265,16 @@ function Model()
 				"onStateChange": Self.VideoStateChangeHandler,
 				"onReady": function()
 				{
-					if (localStorage[LocalStorageKey]) Import(localStorage[LocalStorageKey]);
+					if (localStorage[LocalStorageKey] && Self.List().length == 0)
+						Import(localStorage[LocalStorageKey]);
+
 					setInterval(SaveToLocalStorage, 5000);
 				}
 			}
 		}
 	);
 
+	// This is the callback for a computed observable, defined above.
 	function FilteredList()
 	{
 		if (!Self.Filter()) return Self.List();
@@ -319,7 +328,12 @@ document.head.appendChild(YouTubeScript);
 			</div>
 
 			<div class="row" style="margin: 1em">
-				<input type="text" class="form-control" data-bind="value: Filter, valueUpdate: 'keyup'" placeholder="filter...">
+				<div class="input-group">
+					<input type="text" class="form-control" data-bind="value: Filter, valueUpdate: 'keyup'" placeholder="filter...">
+					<span class="input-group-btn">
+						<button class="btn" data-bind="click: ClearFilter" type="button">&times;</button>
+					</span>
+				</div>
 			</div>
 
 			<ul data-bind="foreach: FilteredList">
