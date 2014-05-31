@@ -149,9 +149,22 @@ function Model()
 						var Title = (Hit.title || {})["$t"] || "<Untitled>";
 						var FeedURL = (Hit.id || {})["$t"] || "";
 						var Code = FeedURL.substring(FeedURL.lastIndexOf("/") + 1);
+						var Author = (((Hit["author"] || [])[0] || {})["name"] || {})["$t"];
 						var ThumbnailURL = (((Hit["media$group"] || {})["media$thumbnail"] || [])[1] || {}).url || "";
+						var Duration = ~~((Hit["media$group"] || {})["yt$duration"] || {}).seconds;
+						var Minutes = ~~(Duration / 60);
+						var Seconds = ("00" + ~~(Duration % 60)).slice(-2);
 
-						Self.SearchResults.push({ "Code": Code, "Title": Title, "ThumbnailURL": ThumbnailURL });
+						var SearchResult =
+						{
+							"Code": Code,
+							"Title": Title,
+							"Author": Author,
+							"ThumbnailURL": ThumbnailURL,
+							"Duration": Minutes + ":" + Seconds
+						};
+
+						Self.SearchResults.push(SearchResult);
 					}
 				);
 			}
@@ -312,6 +325,8 @@ document.head.appendChild(YouTubeScript);
 				<img data-bind="attr: { src: ThumbnailURL }">
 				<div class="caption">
 					<h4 class="ellipsis" data-bind="text: Title"></h4>
+					<div data-bind="text: Duration"></div>
+					<h6 data-bind="text: Author"></div>
 				</div>
 			</div>
 		</div>
